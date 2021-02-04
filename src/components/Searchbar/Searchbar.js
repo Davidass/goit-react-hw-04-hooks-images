@@ -9,8 +9,8 @@ import s from './Searchbar.module.css';
 function Searchbar({ onSubmit }) {
   const [imageName, setImageName] = useState('');
 
-  const handleNameChange = ({ currentTarget }) => {
-    setImageName(currentTarget.value.toLowerCase());
+  const handleNameChange = event => {
+    setImageName(event.currentTarget.value.toLowerCase());
   };
 
   const handelFormSubmit = e => {

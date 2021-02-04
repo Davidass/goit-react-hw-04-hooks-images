@@ -1,10 +1,11 @@
-import React, { Component } from 'react';
-import PropTypes from 'prop-types';
-import pixabayAPI from '../../services/apiPixabay';
+import React, { useState, useEffect } from 'react';
+import Button from 'components/Button';
+import ImageGallery from 'components/ImageGallery';
 import ImagesErrorView from 'components/ImagesErrorView';
 import LoaderView from 'components/LoaderView';
-import ImageGallery from 'components/ImageGallery';
-import Button from 'components/Button';
+import PropTypes from 'prop-types';
+
+import pixabayAPI from '../../services/apiPixabay';
 
 const Status = {
   IDLE: 'idle',
@@ -13,95 +14,72 @@ const Status = {
   REJECTED: 'rejected',
 };
 
-export default class ImagesInfo extends Component {
-  state = {
-    images: [],
-    page: 1,
-    error: null,
-    status: 'idle',
-    arePicturesOver: false,
-    totalHits: 0,
-  };
+function ImagesInfo({ imageName, images, page, setImages, setPage }) {
+  const [error, setError] = useState(null);
+  const [status, setStatus] = useState(Status.IDLE);
+  // const [images, setImages] = useState([]);
+  // const [page, setPage] = useState(1);
+  const [arePicturesOver, setArePicturesOver] = useState(false);
+  // const [totalHits, setTotalHits] = ueState(0);
 
-  componentDidUpdate(prevProps, prevState) {
-    const prevName = prevProps.imageName;
-    const nextName = this.props.imageName;
-    const prevPage = prevState.page;
-    const nextPage = this.state.page;
-
-    if (prevName !== nextName) {
-      this.setState({
-        page: 1,
-        images: [],
-        error: null,
-        status: Status.IDLE,
-      });
-
-      this.fetchImage(1);
+  useEffect(() => {
+    if (!imageName) {
+      console.log('Такого имени нет');
+      return;
     }
-    if (prevPage !== nextPage && nextPage !== 1) {
-      this.fetchImage(nextPage);
-    }
-  }
-
-  fetchImage = page => {
-    const { imageName } = this.props;
-    this.setState({ status: Status.PENDING });
+    setStatus(Status.PENDING);
 
     pixabayAPI
       .fetchPixabay(imageName, page)
       .then(newImages => {
         if (newImages.total !== 0) {
-          this.setState(prevState => ({
-            images: [...prevState.images, ...newImages.hits],
-            arePicturesOver: newImages.totalHits - page * 12 <= 0,
-            // totalHits:
-            //   prevState.totalHits > 0
-            //     ? prevState.totalHits
-            //     : Math.ceil(newImages.totalHits / 12),
-            status: Status.RESOLVED,
-          }));
-          return window.scrollTo({
-            top: document.documentElement.scrollHeight,
-            behavior: 'smooth',
-          });
-        }
-
-        return Promise.reject(new Error('Invalid request'));
+          setImages(prevImages => [...prevImages, ...newImages.hits]);
+          setArePicturesOver(newImages.totalHits - page * 12 <= 0);
+          setStatus(Status.RESOLVED);
+        } else return Promise.reject(new Error('Invalid request'));
+        return window.scrollTo({
+          top: document.documentElement.scrollHeight,
+          behavior: 'smooth',
+        });
       })
-      .catch(error => this.setState({ error, status: Status.REJECTED }));
+      .catch(error => {
+        setError(error);
+        setStatus(Status.REJECTED);
+      });
+  }, [imageName, page, setImages]);
+
+  const onLoadMore = () => {
+    setPage(prevPage => prevPage + 1);
   };
 
-  onLoadMore = () => {
-    this.setState(prevState => ({ page: prevState.page + 1 }));
-  };
+  if (status === Status.IDLE) {
+    return <p>Please enter a value for search images</p>;
+  }
 
-  render() {
-    const { error, status, arePicturesOver, images } = this.state;
+  if (status === Status.REJECTED) {
+    return <ImagesErrorView message={error.message} />;
+  }
 
-    if (status === Status.IDLE) {
-      return <p>Please enter a value for search images</p>;
-    }
+  if (status === Status.RESOLVED || status === Status.PENDING) {
+    return (
+      <>
+        <ImageGallery images={images} />
 
-    if (status === Status.REJECTED) {
-      return <ImagesErrorView message={error.message} />;
-    }
-
-    if (status === Status.RESOLVED || status === Status.PENDING) {
-      return (
-        <>
-          <ImageGallery images={images} />
-
-          {status === Status.RESOLVED && !arePicturesOver && (
-            <Button onLoadMore={this.onLoadMore} />
-          )}
-          {status === Status.PENDING && <LoaderView />}
-        </>
-      );
-    }
+        {status === Status.RESOLVED && !arePicturesOver && (
+          <Button onLoadMore={onLoadMore} />
+        )}
+        {status === Status.PENDING && <LoaderView />}
+      </>
+    );
   }
 }
 
 ImagesInfo.propTypes = {
   imageName: PropTypes.string.isRequired,
+  images: PropTypes.array.isRequired,
+  page: PropTypes.number.isRequired,
+  setImages: PropTypes.func.isRequired,
+  setPage: PropTypes.func.isRequired,
 };
+
+export default ImagesInfo;
